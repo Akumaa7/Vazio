@@ -147,22 +147,23 @@ let sb=null,sbk='',user=null,lastC='';
 const stat=t=>$('#sync').textContent=t,msg=t=>$('#cm').textContent=t,F=i=>$(i).value.trim();
 const lk=l=>[l.a,l.b].sort().join('|'),tomb=k=>S.del[k]=Date.now();
 const sg=x=>JSON.stringify([x.notes.map(n=>n.id+n.u).sort(),x.links.map(l=>lk(l)+l.u).sort(),x.strokes.map(s=>s.id+s.u).sort(),Object.keys(x.del||{}).sort()]);
-let rt;
+let rt,synced=false;
 function fix(d){d.notes=d.notes||[];d.links=d.links||[];d.strokes=d.strokes||[];d.del=d.del||{};d.notes.forEach(n=>n.u=n.u||n.c||1);d.links.forEach(l=>l.u=l.u||0);d.strokes.forEach(x=>{x.id=x.id||uid();x.u=x.u||0});return d}
 function merge(R){const D={...R.del};for(const k in S.del)D[k]=Math.max(D[k]||0,S.del[k]);for(const k in D)if(Date.now()-D[k]>2592e6)delete D[k];
  const pick=(a,b,key,pre)=>{const m=new Map();[...a,...b].forEach(x=>{const o=m.get(key(x));if(!o||x.u>o.u)m.set(key(x),x)});return[...m.values()].filter(x=>!((pre+key(x))in D)||D[pre+key(x)]<x.u)};
  const notes=pick(S.notes,R.notes,n=>n.id,'n:'),ids=new Set(notes.map(n=>n.id));
  return{notes,links:pick(S.links,R.links,lk,'l:').filter(l=>ids.has(l.a)&&ids.has(l.b)),strokes:pick(S.strokes,R.strokes,x=>x.id,'s:'),del:D,ign:[...new Set([...ign,...(R.ign||[])])]}}
-function conn(){if(!CFG.url||!CFG.key||!window.supabase||sbk==CFG.url+CFG.key)return;sbk=CFG.url+CFG.key;sb=supabase.createClient(CFG.url,CFG.key);sb.auth.onAuthStateChange((ev,ss)=>{user=ss?.user||null;if(!user)stat('sem conta');else if(ev=='SIGNED_IN'||ev=='INITIAL_SESSION')pull()})}
-async function push(){if(!sb||!user)return;const c=sg(S);if(c==lastC)return;if(!navigator.onLine)return stat('offline: salvo no aparelho');stat('sincronizando…');
+function conn(){if(!CFG.url||!CFG.key||!window.supabase||sbk==CFG.url+CFG.key)return;sbk=CFG.url+CFG.key;sb=supabase.createClient(CFG.url,CFG.key);sb.auth.onAuthStateChange((ev,ss)=>{if((ss?.user?.id||0)!=(user?.id||0)){synced=false;lastC=''}user=ss?.user||null;if(!user)stat('sem conta');else if(ev=='SIGNED_IN'||ev=='INITIAL_SESSION')pull()})}
+const pristine=()=>S.notes.every(n=>n.sd&&n.u==n.c)&&S.strokes.every(x=>x.sd)&&!S.links.some(l=>l.u)&&!Object.keys(S.del).length;
+const clean=d=>{d.notes=d.notes.filter(n=>!(n.sd&&n.u==n.c));d.strokes=d.strokes.filter(x=>!x.sd);return d};
+async function push(){if(!sb||!user||!synced)return;const c=sg(S);if(c==lastC||pristine())return;if(!navigator.onLine)return stat('offline: salvo no aparelho');stat('sincronizando…');
  try{const{error}=await sb.from('vazio_boards').upsert({user_id:user.id,data:{notes:S.notes,links:S.links,strokes:S.strokes,del:S.del,ign:[...ign],cam},updated_at:new Date().toISOString()});if(error)throw error;lastC=c;stat('salvo na nuvem')}
- catch(x){stat('sem conexão: tentando de novo');clearTimeout(rt);rt=setTimeout(push,20000)}}
+ catch(x){stat('erro: '+(x.message||x));clearTimeout(rt);rt=setTimeout(push,20000)}}
 async function pull(){if(!sb||!user||document.activeElement?.closest?.('.t')||!navigator.onLine)return;stat('sincronizando…');
  try{const{data,error}=await sb.from('vazio_boards').select('data').eq('user_id',user.id).maybeSingle();if(error)throw error;
- if(!data){lastC='';return push()}
- S.notes=S.notes.filter(n=>!(n.sd&&n.u==n.c));S.strokes=S.strokes.filter(x=>!x.sd);
- const R=fix(data.data),M=merge(R);if(sg(M)!=sg(S))apply(M);lastC=sg(R);if(sg(S)!=lastC)push();else stat('salvo na nuvem')}
- catch(x){stat('sem conexão: tentando de novo');clearTimeout(rt);rt=setTimeout(pull,20000)}}
+ const R=data?clean(fix(data.data)):fix({});let cl=0;if(data){const b=S.notes.length+S.strokes.length;clean(S);cl=b!=S.notes.length+S.strokes.length}
+ const M=merge(R);if(cl||sg(M)!=sg(S))apply(M);synced=true;lastC=sg(R);if(sg(S)!=lastC&&!pristine())push();else stat('salvo na nuvem')}
+ catch(x){stat('erro: '+(x.message||x));clearTimeout(rt);rt=setTimeout(pull,20000)}}
 function apply(d){els.forEach(e=>e.remove());els.clear();S={notes:d.notes||[],links:d.links||[],strokes:d.strokes||[],del:d.del||{}};ign.clear();(d.ign||[]).forEach(k=>ign.add(k));sel=selL=null;S.notes.forEach(n=>mk(n));rd();checkSug();try{localStorage.setItem(KEY,JSON.stringify({...S,cam,ign:[...ign]}))}catch(e){}}
 $('#cex').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({notes:S.notes,links:S.links,strokes:S.strokes,del:S.del,ign:[...ign]})],{type:'application/json'}));a.download='vazio-'+new Date().toISOString().slice(0,10)+'.json';a.click()};
 $('#cim').onclick=()=>$('#cf').click();
