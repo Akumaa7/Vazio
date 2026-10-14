@@ -22,7 +22,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);overflow:hi
 @keyframes march{to{stroke-dashoffset:calc(-10px*var(--inv))}}
 @keyframes rise{from{opacity:0;filter:blur(12px);transform:translateY(10px)}}
 @keyframes pulse{50%{text-shadow:0 0 28px var(--hot)}}
-.note{position:absolute;min-width:1ch;padding:4px 12px;font:italic 24px/1.25 var(--serif);white-space:pre-wrap;word-break:break-word;transition:opacity .4s}
+.note{position:absolute;width:max-content;min-width:1ch;padding:4px 12px;font:italic 24px/1.25 var(--serif);white-space:pre-wrap;overflow-wrap:break-word;transition:opacity .4s}
 .nw{animation:rise 1s cubic-bezier(.2,.7,.2,1) both}
 .t{outline:none;caret-color:var(--hot);min-width:1ch;transition:opacity .3s,color .3s;user-select:text;-webkit-user-select:text}
 .t:empty::before{content:'…';color:var(--dim)}
